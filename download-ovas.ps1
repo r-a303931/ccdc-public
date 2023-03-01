@@ -2,9 +2,7 @@
 
 $compUrl = ""
 while ($true) {
-    $years = (Invoke-WebRequest "https://archive.wrccdc.org/images/").Links
-        | Where { $_.Href -like "*/" -and $_.Href -ne "../" -and (-not ($_.Href -like "http://*")) }
-        | ForEach { $_.Href }
+    $years = (Invoke-WebRequest "https://archive.wrccdc.org/images/").Links | Where { $_.Href -like "*/" -and $_.Href -ne "../" -and (-not ($_.Href -like "http://*")) } | ForEach { $_.Href }
 
     $yearInput = ""
 
@@ -61,40 +59,38 @@ if ((Get-Command).Count -le 300) {
     mkdir -ErrorAction SilentlyContinue "tmp-vmx"
 }
 
-$ovaFiles
-    | % { $compUrl + $_.Href }
-    | % {
-        function Run-Ovftool {
-            param([string]$In, [string]$Out)
+$ovaFiles | % { $compUrl + $_.Href } | % {
+    function Run-Ovftool {
+        param([string]$In, [string]$Out)
 
-            $ToolOnWindows = (Get-Command).Count -ge 300
+        $ToolOnWindows = (Get-Command).Count -ge 300
 
-            if ($ToolOnWindows) {
-                if ([System.IO.Path]::Exists("C:\Program Files (x86)\VMware\VMware Workstation\OVFTool\ovftool.exe")) {
-                    & "C:\Program Files (x86)\VMware\VMware Workstation\OVFTool\ovftool.exe" $In $Out
-                } elseif ([System.IO.Path]::Exists("C:\Program Files\VMware\VMware Workstation\OVFTool\ovftool.exe")) {
-                    & "C:\Program Files\VMware\VMware Workstation\OVFTool\ovftool.exe" $In $Out
-                } else {
-                    Write-Host "Error! Could not find ovftool! Please install VMWare Workstation 17"
-                    exit 1
-                }
+        if ($ToolOnWindows) {
+            if ([System.IO.Path]::Exists("C:\Program Files (x86)\VMware\VMware Workstation\OVFTool\ovftool.exe")) {
+                & "C:\Program Files (x86)\VMware\VMware Workstation\OVFTool\ovftool.exe" $In $Out
+            } elseif ([System.IO.Path]::Exists("C:\Program Files\VMware\VMware Workstation\OVFTool\ovftool.exe")) {
+                & "C:\Program Files\VMware\VMware Workstation\OVFTool\ovftool.exe" $In $Out
             } else {
-                $ovftool = which "ovftool"
-                & $ovftool $In $Out
+                Write-Host "Error! Could not find ovftool! Please install VMWare Workstation 17"
+                exit 1
             }
+        } else {
+            $ovftool = which "ovftool"
+            & $ovftool $In $Out
         }
-
-        "Downloading $_..." | Write-Host
-        $ova = [System.IO.Path]::GetFileName($_)
-        $tmpOvaPath = Join-Path $pwd.Path "tmp-ovas" $ova
-        Invoke-WebRequest $_ -OutFile $tmpOvaPath
-        $ovaName = [System.IO.Path]::GetFileNameWithoutExtension($ova)
-        $vmxName = $ovaName + ".vmx"
-        $tmpVmxPath = Join-Path $pwd.Path "tmp-vmx" $vmxName
-
-        Run-Ovftool -In $tmpOvaPath -Out $tmpVmxPath
-
-        (Get-Content -Path $tmpVmxPath -Raw).Replace('virtualhw.version = "14"','virtualhw.version = "13"').Replace('virtualhw.version = "15"','virtualhw.version = "13"') | Set-Content -Path $tmpVmxPath
-
-        Run-Ovftool -In $tmpVmxPath -Out $ova
     }
+
+    "Downloading $_..." | Write-Host
+    $ova = [System.IO.Path]::GetFileName($_)
+    $tmpOvaPath = Join-Path $pwd.Path "tmp-ovas" $ova
+    Invoke-WebRequest $_ -OutFile $tmpOvaPath
+    $ovaName = [System.IO.Path]::GetFileNameWithoutExtension($ova)
+    $vmxName = $ovaName + ".vmx"
+    $tmpVmxPath = Join-Path $pwd.Path "tmp-vmx" $vmxName
+
+    Run-Ovftool -In $tmpOvaPath -Out $tmpVmxPath
+
+    (Get-Content -Path $tmpVmxPath -Raw).Replace('virtualhw.version = "14"','virtualhw.version = "13"').Replace('virtualhw.version = "15"','virtualhw.version = "13"') | Set-Content -Path $tmpVmxPath
+
+    Run-Ovftool -In $tmpVmxPath -Out $ova
+}
